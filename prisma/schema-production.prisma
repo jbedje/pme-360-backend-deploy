@@ -1,0 +1,278 @@
+// This is your Prisma schema file for production
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String @id @default(cuid())
+  email            String @unique
+  password         String
+  firstName        String
+  lastName         String
+  profileType      ProfileType
+  company          String?
+  phone            String?
+  website          String?
+  bio              String?
+  profileImageUrl  String?
+  isEmailVerified  Boolean @default(false)
+  isActive         Boolean @default(true)
+  lastLoginAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  sentMessages      Message[] @relation("SentMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
+  createdOpportunities Opportunity[] @relation("CreatedOpportunities")
+  appliedOpportunities OpportunityApplication[]
+  createdEvents     Event[] @relation("CreatedEvents")
+  eventRegistrations EventRegistration[]
+  uploadedResources Resource[] @relation("UploadedResources")
+  resourceDownloads ResourceDownload[]
+  notifications     Notification[]
+  auditLogs        AuditLog[]
+  refreshTokens    RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  subject    String
+  content    String
+  senderId   String
+  receiverId String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Opportunity {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  type        OpportunityType
+  budget      Float?
+  location    String?
+  deadline    DateTime?
+  requirements String?
+  isActive    Boolean     @default(true)
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  createdBy    User @relation("CreatedOpportunities", fields: [createdById], references: [id], onDelete: Cascade)
+  applications OpportunityApplication[]
+
+  @@map("opportunities")
+}
+
+model OpportunityApplication {
+  id             String   @id @default(cuid())
+  opportunityId  String
+  userId         String
+  coverLetter    String
+  proposedBudget Float?
+  status         ApplicationStatus @default(PENDING)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, userId])
+  @@map("opportunity_applications")
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  type            EventType
+  startDate       DateTime
+  endDate         DateTime?
+  location        String?
+  isVirtual       Boolean  @default(false)
+  capacity        Int?
+  registrationFee Float?
+  requirements    String?
+  isActive        Boolean  @default(true)
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy     User @relation("CreatedEvents", fields: [createdById], references: [id], onDelete: Cascade)
+  registrations EventRegistration[]
+
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  status    RegistrationStatus @default(CONFIRMED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("event_registrations")
+}
+
+model Resource {
+  id           String      @id @default(cuid())
+  title        String
+  description  String
+  type         ResourceType
+  category     ResourceCategory
+  url          String?
+  fileUrl      String?
+  tags         String[]
+  isPremium    Boolean     @default(false)
+  price        Float?
+  downloadCount Int        @default(0)
+  rating       Float?
+  uploadedById String
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  uploadedBy User @relation("UploadedResources", fields: [uploadedById], references: [id], onDelete: Cascade)
+  downloads  ResourceDownload[]
+
+  @@map("resources")
+}
+
+model ResourceDownload {
+  id         String   @id @default(cuid())
+  resourceId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, userId])
+  @@map("resource_downloads")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  resource  String?
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+enum ProfileType {
+  PME
+  CONSULTANT
+  INVESTOR
+  ADMIN
+}
+
+enum OpportunityType {
+  FUNDING
+  PARTNERSHIP
+  CONTRACT
+  MENTORSHIP
+  INVESTMENT
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum EventType {
+  CONFERENCE
+  WORKSHOP
+  NETWORKING
+  TRAINING
+  WEBINAR
+  MEETUP
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+}
+
+enum ResourceType {
+  DOCUMENT
+  TEMPLATE
+  GUIDE
+  TOOL
+  VIDEO
+  AUDIO
+}
+
+enum ResourceCategory {
+  BUSINESS
+  FINANCE
+  MARKETING
+  LEGAL
+  HR
+  TECH
+  MANAGEMENT
+  SALES
+}
+
+enum NotificationType {
+  MESSAGE
+  OPPORTUNITY
+  EVENT
+  RESOURCE
+  SYSTEM
+}

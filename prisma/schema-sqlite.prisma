@@ -1,0 +1,454 @@
+// Schéma Prisma optimisé pour SQLite
+// PME 360 Backend Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== UTILISATEURS ====================
+
+enum ProfileType {
+  STARTUP
+  EXPERT
+  MENTOR
+  INCUBATOR
+  INVESTOR
+  FINANCIAL_INSTITUTION
+  PUBLIC_ORGANIZATION
+  TECH_PARTNER
+  PME
+  CONSULTANT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+model User {
+  id                String      @id @default(cuid())
+  
+  // Informations de base
+  email             String      @unique
+  name              String
+  password          String
+  profileType       ProfileType
+  status            UserStatus  @default(ACTIVE)
+  
+  // Informations du profil
+  company           String?
+  location          String?
+  avatar            String?
+  description       String?
+  website           String?
+  linkedin          String?
+  phone             String?
+  
+  // Métadonnées
+  verified          Boolean     @default(false)
+  completionScore   Int         @default(30)
+  rating            Float?
+  reviewCount       Int         @default(0)
+  
+  // Expertises
+  expertises        UserExpertise[]
+  
+  // Relations
+  sentMessages      Message[]     @relation("MessageSender")
+  receivedMessages  Message[]     @relation("MessageRecipient")
+  conversations     ConversationParticipant[]
+  opportunities     Opportunity[]
+  applications      Application[]
+  connections       Connection[]  @relation("UserConnections")
+  connectedTo       Connection[]  @relation("ConnectedUser")
+  eventRegistrations EventRegistration[]
+  
+  // Notifications
+  notifications     Notification[]
+  activities        UserActivity[]
+  
+  // Timestamps
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  lastLogin         DateTime?
+  
+  @@map("users")
+}
+
+model UserExpertise {
+  id       String @id @default(cuid())
+  userId   String
+  name     String
+  level    Int    @default(1) // 1-5
+  verified Boolean @default(false)
+  
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_expertises")
+}
+
+// ==================== CONNEXIONS ====================
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+model Connection {
+  id          String           @id @default(cuid())
+  requesterId String
+  targetId    String
+  status      ConnectionStatus @default(PENDING)
+  message     String?
+  
+  // Relations
+  requester   User @relation("UserConnections", fields: [requesterId], references: [id], onDelete: Cascade)
+  target      User @relation("ConnectedUser", fields: [targetId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([requesterId, targetId])
+  @@map("connections")
+}
+
+// ==================== MESSAGERIE ====================
+
+enum MessageType {
+  TEXT
+  FILE
+  IMAGE
+  DOCUMENT
+}
+
+model Conversation {
+  id           String @id @default(cuid())
+  title        String?
+  isGroup      Boolean @default(false)
+  
+  // Relations
+  participants ConversationParticipant[]
+  messages     Message[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+  leftAt         DateTime?
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+  recipientId    String?
+  
+  // Contenu et métadonnées
+  content        String
+  type           MessageType @default(TEXT)
+  attachments    MessageAttachment[]
+  readAt         DateTime?
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient      User?        @relation("MessageRecipient", fields: [recipientId], references: [id])
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id        String @id @default(cuid())
+  messageId String
+  url       String
+  filename  String
+  mimeType  String?
+  size      Int?
+  
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("message_attachments")
+}
+
+// ==================== OPPORTUNITÉS ====================
+
+enum OpportunityType {
+  FUNDING
+  TALENT
+  SERVICE
+  PARTNERSHIP
+}
+
+enum OpportunityStatus {
+  ACTIVE
+  CLOSED
+  DRAFT
+  EXPIRED
+}
+
+model Opportunity {
+  id          String            @id @default(cuid())
+  authorId    String
+  
+  // Informations de base
+  title       String
+  description String
+  type        OpportunityType
+  status      OpportunityStatus @default(ACTIVE)
+  
+  // Détails financiers et logistiques
+  budget      String?           // Format libre pour flexibilité
+  amount      String?
+  location    String?
+  remote      Boolean           @default(false)
+  deadline    DateTime?
+  startDate   DateTime?
+  
+  // Compétences requises
+  skills      OpportunitySkill[]
+  experience  String?
+  
+  // Relations
+  author      User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  applications Application[]
+  
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  @@map("opportunities")
+}
+
+model OpportunitySkill {
+  id            String @id @default(cuid())
+  opportunityId String
+  skill         String
+  
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  
+  @@map("opportunity_skills")
+}
+
+// ==================== CANDIDATURES ====================
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  opportunityId String
+  applicantId   String
+  
+  // Détails candidature
+  coverLetter   String
+  proposedRate  String?
+  availability  String?
+  attachments   ApplicationAttachment[]
+  
+  status        ApplicationStatus @default(PENDING)
+  
+  // Relations
+  opportunity   Opportunity       @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant     User             @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  
+  @@unique([opportunityId, applicantId])
+  @@map("applications")
+}
+
+model ApplicationAttachment {
+  id            String @id @default(cuid())
+  applicationId String
+  url           String
+  filename      String
+  mimeType      String?
+  size          Int?
+  
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@map("application_attachments")
+}
+
+// ==================== RESSOURCES ====================
+
+enum ResourceType {
+  ARTICLE
+  VIDEO
+  DOCUMENT
+  TOOL
+  TEMPLATE
+  GUIDE
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  
+  // Informations de base
+  title       String
+  description String
+  content     String?      // Contenu textuel
+  url         String?      // Lien externe
+  thumbnail   String?      // Image de couverture
+  type        ResourceType @default(ARTICLE)
+  
+  // Métadonnées
+  author      String       // Nom auteur
+  tags        ResourceTag[]
+  isPremium   Boolean      @default(false)
+  viewCount   Int          @default(0)
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@map("resources")
+}
+
+model ResourceTag {
+  id         String @id @default(cuid())
+  resourceId String
+  tag        String
+  
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  
+  @@map("resource_tags")
+}
+
+// ==================== ÉVÉNEMENTS ====================
+
+enum EventType {
+  CONFERENCE
+  WORKSHOP
+  NETWORKING
+  WEBINAR
+  MEETUP
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model Event {
+  id            String        @id @default(cuid())
+  
+  // Informations de base
+  title         String
+  description   String
+  type          EventType     @default(MEETUP)
+  status        EventStatus   @default(UPCOMING)
+  
+  // Détails de l'événement
+  startDate     DateTime
+  endDate       DateTime?
+  location      String?
+  isOnline      Boolean       @default(false)
+  meetingUrl    String?       // Lien visio si en ligne
+  maxAttendees  Int?
+  price         String?       // Prix (format libre)
+  
+  // Organisateur
+  organizer     String
+  organizerContact String?
+  
+  // Relations
+  registrations EventRegistration[]
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  
+  // Relations
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([eventId, userId])
+  @@map("event_registrations")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+enum NotificationType {
+  MESSAGE
+  CONNECTION_REQUEST
+  OPPORTUNITY_MATCH
+  APPLICATION_UPDATE
+  EVENT_REMINDER
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      String?          // JSON stringifié pour données supplémentaires
+  read      Boolean          @default(false)
+  actionUrl String?          // URL pour action rapide
+  
+  // Relations
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime         @default(now())
+  
+  @@map("notifications")
+}
+
+// ==================== ANALYTICS ====================
+
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // login, profile_view, message_sent, etc.
+  metadata  String?  // JSON stringifié
+  ipAddress String?
+  userAgent String?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@map("user_activities")
+}
