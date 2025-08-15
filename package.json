@@ -4,11 +4,11 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmitOnError false",
     "dev": "nodemon src/index.ts",
     "start": "node dist/index.js",
     "start:prod": "npm run build && npm run prisma:push && node dist/index.js",
-    "railway:build": "npm run build",
+    "railway:build": "tsc --noEmitOnError false",
     "railway:start": "npm run prisma:push && node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
