@@ -1,10 +1,18 @@
 const express = require('express');
 const cors = require('cors');
-const { PrismaClient } = require('@prisma/client');
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Prisma safely
+let prisma = null;
+try {
+  const { PrismaClient } = require('@prisma/client');
+  prisma = new PrismaClient();
+  console.log('✅ Prisma client initialized');
+} catch (error) {
+  console.warn('⚠️ Prisma client failed to initialize:', error.message);
+}
 
 // Middleware
 app.use(cors({
@@ -18,7 +26,9 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    message: 'PME 360 API is running'
+    message: 'PME 360 API is running',
+    database: prisma ? 'connected' : 'not connected',
+    port: PORT
   });
 });
 
@@ -30,6 +40,13 @@ app.get('/api/test', (req, res) => {
 // Users route
 app.get('/api/users', async (req, res) => {
   try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -70,9 +87,11 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 PME 360 API Server running on port ${PORT}`);
   console.log(`📋 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📁 Database URL: ${process.env.DATABASE_URL ? 'Set' : 'Not set'}`);
 });
 
 module.exports = app;
