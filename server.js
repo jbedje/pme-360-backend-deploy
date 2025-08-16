@@ -70,6 +70,80 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Auth login route
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email et mot de passe requis' 
+      });
+    }
+
+    // Simple authentication (replace with real authentication later)
+    if (email === 'admin@pme360.com' && password === 'admin123') {
+      const user = {
+        id: 1,
+        email: 'admin@pme360.com',
+        firstName: 'Admin',
+        lastName: 'PME360',
+        profileType: 'admin',
+        company: 'PME 360',
+        isActive: true
+      };
+      
+      const token = 'simple-jwt-token-' + Date.now();
+      
+      return res.json({
+        success: true,
+        data: {
+          user,
+          token
+        },
+        message: 'Connexion réussie'
+      });
+    }
+
+    // Test user
+    if (email === 'test@example.com' && password === 'password123') {
+      const user = {
+        id: 2,
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
+        profileType: 'entrepreneur',
+        company: 'Test Company',
+        isActive: true
+      };
+      
+      const token = 'simple-jwt-token-' + Date.now();
+      
+      return res.json({
+        success: true,
+        data: {
+          user,
+          token
+        },
+        message: 'Connexion réussie'
+      });
+    }
+
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Email ou mot de passe incorrect' 
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur serveur lors de la connexion' 
+    });
+  }
+});
+
 // Auth test route
 app.post('/api/auth/test', (req, res) => {
   res.json({ 
