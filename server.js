@@ -36,6 +36,67 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database diagnostic endpoint
+app.get('/api/db/status', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.json({ 
+        success: false, 
+        prisma: 'not initialized',
+        databaseUrl: process.env.DATABASE_URL ? 'set' : 'not set'
+      });
+    }
+
+    // Test basic connection
+    let connectionTest = 'failed';
+    let rawQueryTest = 'failed';
+    let userCountTest = 'failed';
+
+    try {
+      await prisma.$connect();
+      connectionTest = 'success';
+    } catch (error) {
+      connectionTest = error.message;
+    }
+
+    try {
+      await prisma.$queryRaw`SELECT 1 as test`;
+      rawQueryTest = 'success';
+    } catch (error) {
+      rawQueryTest = error.message;
+    }
+
+    try {
+      const count = await prisma.user.count();
+      userCountTest = `success: ${count} users`;
+    } catch (error) {
+      userCountTest = error.message;
+    }
+
+    res.json({
+      success: true,
+      diagnostics: {
+        prisma: 'initialized',
+        databaseUrl: process.env.DATABASE_URL ? 'set' : 'not set',
+        databaseUrlPreview: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 20) + '...' : 'not set',
+        connectionTest,
+        rawQueryTest,
+        userCountTest
+      }
+    });
+
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      diagnostics: {
+        prisma: prisma ? 'initialized' : 'not initialized',
+        databaseUrl: process.env.DATABASE_URL ? 'set' : 'not set'
+      }
+    });
+  }
+});
+
 // Simple database initialization via GET (easier to trigger)
 app.get('/api/init-db', async (req, res) => {
   try {
