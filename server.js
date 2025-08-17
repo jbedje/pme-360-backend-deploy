@@ -163,44 +163,117 @@ app.post('/api/db/setup', async (req, res) => {
       });
     }
 
-    // Try to push schema to database
-    const { exec } = require('child_process');
-    
-    exec('npx prisma db push --accept-data-loss', (error, stdout, stderr) => {
-      if (error) {
-        console.error('❌ Database push error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Database setup failed',
-          details: error.message
-        });
-      }
+    console.log('🚀 Starting manual database seeding...');
 
-      // After successful schema push, run seeding
-      exec('npm run prisma:seed', (seedError, seedStdout, seedStderr) => {
-        if (seedError) {
-          console.error('⚠️ Seeding error:', seedError);
-          return res.json({ 
-            success: true, 
-            message: 'Database schema created but seeding failed',
-            details: seedError.message
-          });
+    // Manual seeding using Prisma client directly
+    const bcrypt = require('bcryptjs');
+
+    // Create admin user
+    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+    const adminUser = await prisma.user.upsert({
+      where: { email: 'admin@pme360.com' },
+      update: {},
+      create: {
+        email: 'admin@pme360.com',
+        name: 'Admin PME360',
+        password: hashedAdminPassword,
+        profileType: 'ADMIN',
+        status: 'ACTIVE',
+        company: 'PME 360',
+        verified: true,
+        completionScore: 100,
+      },
+    });
+
+    // Create test user
+    const hashedTestPassword = await bcrypt.hash('password123', 10);
+    const testUser = await prisma.user.upsert({
+      where: { email: 'test@example.com' },
+      update: {},
+      create: {
+        email: 'test@example.com',
+        name: 'Test User',
+        password: hashedTestPassword,
+        profileType: 'STARTUP',
+        status: 'ACTIVE',
+        company: 'Test Company',
+        verified: true,
+        completionScore: 75,
+      },
+    });
+
+    // Create sample opportunity
+    const opportunity = await prisma.opportunity.create({
+      data: {
+        title: 'Développeur Full-Stack React/Node.js',
+        description: 'Recherche développeur expérimenté pour projet fintech innovant.',
+        type: 'TALENT',
+        status: 'ACTIVE',
+        budget: '50k-70k€',
+        location: 'Paris',
+        remote: true,
+        authorId: adminUser.id,
+        skills: {
+          create: [
+            { skill: 'React' },
+            { skill: 'Node.js' },
+            { skill: 'TypeScript' }
+          ]
         }
+      },
+    });
 
-        console.log('✅ Database setup completed successfully');
-        res.json({ 
-          success: true, 
-          message: 'Database setup and seeding completed successfully',
-          details: {
-            push: stdout,
-            seed: seedStdout
-          }
-        });
-      });
+    // Create sample event
+    const event = await prisma.event.create({
+      data: {
+        title: 'Conférence FinTech Paris 2024',
+        description: 'La plus grande conférence européenne dédiée aux innovations financières.',
+        type: 'CONFERENCE',
+        status: 'UPCOMING',
+        startDate: new Date('2024-09-25T09:00:00Z'),
+        endDate: new Date('2024-09-25T18:00:00Z'),
+        location: 'Palais des Congrès, Paris',
+        isOnline: false,
+        maxAttendees: 500,
+        price: '150€',
+        organizer: 'FinTech Europe',
+        organizerContact: 'contact@fintecheurope.com',
+      },
+    });
+
+    // Create sample resource
+    const resource = await prisma.resource.create({
+      data: {
+        title: 'Guide complet de création d\'entreprise',
+        description: 'Guide détaillé pour créer son entreprise en France.',
+        type: 'GUIDE',
+        author: 'Marie Dubois',
+        viewCount: 1247,
+        url: 'https://example.com/guide-creation-entreprise.pdf',
+        tags: {
+          create: [
+            { tag: 'Création' },
+            { tag: 'Administratif' },
+            { tag: 'Business Plan' }
+          ]
+        }
+      },
+    });
+
+    console.log('✅ Database seeded successfully!');
+    res.json({ 
+      success: true, 
+      message: 'Database seeded successfully via Prisma client',
+      data: {
+        users: 2,
+        opportunities: 1,
+        events: 1,
+        resources: 1
+      }
     });
 
   } catch (error) {
-    console.error('Database setup error:', error);
+    console.error('❌ Database setup error:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Database setup failed',
