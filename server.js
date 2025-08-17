@@ -364,12 +364,42 @@ app.use('*', (req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
 });
 
+// Database initialization function
+async function initializeDatabase() {
+  if (!prisma) {
+    console.log('⚠️ Prisma not available, skipping database initialization');
+    return;
+  }
+
+  try {
+    // Test database connection
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ Database connection test successful');
+
+    // Check if User table exists and has data
+    const userCount = await prisma.user.count();
+    console.log(`📊 Found ${userCount} users in database`);
+
+    if (userCount === 0) {
+      console.log('🌱 No users found, database may need seeding');
+      console.log('💡 You can run: POST /api/db/setup to initialize data');
+    }
+
+  } catch (error) {
+    console.log('⚠️ Database initialization check failed:', error.message);
+    console.log('💡 Database tables may not exist yet. You can run: POST /api/db/setup');
+  }
+}
+
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 PME 360 API Server running on port ${PORT}`);
   console.log(`📋 Health check: http://localhost:${PORT}/health`);
   console.log(`🔗 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📁 Database URL: ${process.env.DATABASE_URL ? 'Set' : 'Not set'}`);
+  
+  // Initialize database
+  await initializeDatabase();
 });
 
 module.exports = app;
