@@ -36,6 +36,89 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Simple database initialization via GET (easier to trigger)
+app.get('/api/init-db', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+
+    console.log('🚀 Starting simple database initialization...');
+
+    // Check if database is already initialized
+    try {
+      const userCount = await prisma.user.count();
+      if (userCount > 0) {
+        return res.json({
+          success: true,
+          message: `Database already initialized with ${userCount} users`,
+          alreadyInitialized: true
+        });
+      }
+    } catch (error) {
+      console.log('⚠️ Tables may not exist yet, proceeding with initialization...');
+    }
+
+    const bcrypt = require('bcryptjs');
+
+    // Create admin user
+    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+    const adminUser = await prisma.user.upsert({
+      where: { email: 'admin@pme360.com' },
+      update: {},
+      create: {
+        email: 'admin@pme360.com',
+        name: 'Admin PME360',
+        password: hashedAdminPassword,
+        profileType: 'ADMIN',
+        status: 'ACTIVE',
+        company: 'PME 360',
+        verified: true,
+        completionScore: 100,
+      },
+    });
+
+    // Create test user  
+    const hashedTestPassword = await bcrypt.hash('password123', 10);
+    const testUser = await prisma.user.upsert({
+      where: { email: 'test@example.com' },
+      update: {},
+      create: {
+        email: 'test@example.com',
+        name: 'Test User',
+        password: hashedTestPassword,
+        profileType: 'STARTUP',
+        status: 'ACTIVE',
+        company: 'Test Company',
+        verified: true,
+        completionScore: 75,
+      },
+    });
+
+    console.log('✅ Database initialized successfully!');
+    res.json({ 
+      success: true, 
+      message: 'Database initialized successfully!',
+      data: {
+        users: 2,
+        adminEmail: 'admin@pme360.com',
+        testEmail: 'test@example.com'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Database initialization error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Database initialization failed',
+      details: error.message
+    });
+  }
+});
+
 // Basic API routes
 app.get('/api/test', (req, res) => {
   res.json({ message: 'PME 360 API is working!' });
