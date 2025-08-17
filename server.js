@@ -153,6 +153,206 @@ app.post('/api/auth/test', (req, res) => {
   });
 });
 
+// Database setup route (for initial deployment)
+app.post('/api/db/setup', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+
+    // Try to push schema to database
+    const { exec } = require('child_process');
+    
+    exec('npx prisma db push --accept-data-loss', (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ Database push error:', error);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Database setup failed',
+          details: error.message
+        });
+      }
+
+      // After successful schema push, run seeding
+      exec('npm run prisma:seed', (seedError, seedStdout, seedStderr) => {
+        if (seedError) {
+          console.error('⚠️ Seeding error:', seedError);
+          return res.json({ 
+            success: true, 
+            message: 'Database schema created but seeding failed',
+            details: seedError.message
+          });
+        }
+
+        console.log('✅ Database setup completed successfully');
+        res.json({ 
+          success: true, 
+          message: 'Database setup and seeding completed successfully',
+          details: {
+            push: stdout,
+            seed: seedStdout
+          }
+        });
+      });
+    });
+
+  } catch (error) {
+    console.error('Database setup error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Database setup failed',
+      details: error.message
+    });
+  }
+});
+
+// Enhanced users route with real database
+app.get('/api/users', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        profileType: true,
+        company: true,
+        status: true,
+        verified: true,
+        completionScore: true,
+        createdAt: true
+      }
+    });
+    
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('Users error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch users',
+      details: error.message 
+    });
+  }
+});
+
+// Enhanced opportunities route
+app.get('/api/opportunities', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
+    const opportunities = await prisma.opportunity.findMany({
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            company: true,
+            profileType: true
+          }
+        },
+        skills: true,
+        applications: {
+          select: {
+            id: true,
+            status: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    res.json({ success: true, data: opportunities });
+  } catch (error) {
+    console.error('Opportunities error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch opportunities',
+      details: error.message 
+    });
+  }
+});
+
+// Events route
+app.get('/api/events', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
+    const events = await prisma.event.findMany({
+      include: {
+        registrations: {
+          select: {
+            id: true,
+            userId: true
+          }
+        }
+      },
+      orderBy: {
+        startDate: 'asc'
+      }
+    });
+    
+    res.json({ success: true, data: events });
+  } catch (error) {
+    console.error('Events error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch events',
+      details: error.message 
+    });
+  }
+});
+
+// Resources route
+app.get('/api/resources', async (req, res) => {
+  try {
+    if (!prisma) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
+    const resources = await prisma.resource.findMany({
+      include: {
+        tags: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    res.json({ success: true, data: resources });
+  } catch (error) {
+    console.error('Resources error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch resources',
+      details: error.message 
+    });
+  }
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
