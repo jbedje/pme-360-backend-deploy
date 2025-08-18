@@ -10,6 +10,7 @@ try {
   const { PrismaClient } = require('@prisma/client');
   prisma = new PrismaClient();
   console.log('✅ Prisma client initialized');
+  console.log('🔗 DATABASE_URL preview:', process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 30) + '...' : 'NOT SET');
 } catch (error) {
   console.warn('⚠️ Prisma client failed to initialize:', error.message);
 }
@@ -34,6 +35,37 @@ app.get('/health', (req, res) => {
     database: prisma ? 'connected' : 'not connected',
     port: PORT
   });
+});
+
+// Fresh Prisma client test
+app.get('/api/db/fresh-test', async (req, res) => {
+  try {
+    console.log('🔄 Creating fresh Prisma client...');
+    console.log('🔗 Current DATABASE_URL:', process.env.DATABASE_URL ? 'SET (' + process.env.DATABASE_URL.length + ' chars)' : 'NOT SET');
+    
+    const { PrismaClient } = require('@prisma/client');
+    const freshPrisma = new PrismaClient({
+      log: ['query', 'info', 'warn', 'error'],
+    });
+    
+    await freshPrisma.$connect();
+    const result = await freshPrisma.$queryRaw`SELECT 1 as test`;
+    await freshPrisma.$disconnect();
+    
+    res.json({
+      success: true,
+      message: 'Fresh Prisma client works!',
+      result,
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET'
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
+      databaseUrlPreview: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 30) + '...' : 'NOT SET'
+    });
+  }
 });
 
 // Database diagnostic endpoint
